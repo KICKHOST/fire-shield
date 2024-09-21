@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <title>Fire Shield</title>
+    <style>
+      body {
+        width: 300px;
+        padding: 10px;
+      }
+
+      #apiKey {
+        padding: 5px 10px;
+        margin: 5px 0 10px;
+        width: 280px;
+      }
+
+      #saveButton {
+        padding: 5px 10px;
+        border-radius: 50px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>X投稿確認拡張機能</h2>
+    <label>OpenAI APIキー</label>
+    <input type="password" id="apiKey" placeholder="あなたのOpenAI APIキーを入力してください">
+    <button id="saveButton">APIキーを保存する</button>
+    <p id="status"></p>
+    <p>OpenAIのAPIキーは<a id="link" href="https://platform.openai.com/api-keys">こちら</a>から取得してください</p>
+    <script src="popup.js"></script>
+  </body>
+</html>

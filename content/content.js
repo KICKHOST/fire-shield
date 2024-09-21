@@ -1,38 +1,25 @@
-function callOpenAI(prompt) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ action: "callOpenAI", prompt: prompt }, response => {
-      if (chrome.runtime.lastError) {
-        reject(chrome.runtime.lastError);
-      } else if (response.success) {
-        resolve(response.data);
-      } else {
-        reject(new Error(response.error));
-      }
-    });
-  });
-}
-
-async function judge(content) {
+const callOpenAI = async (prompt) => {
   try {
-    const prompt = "以下のテキストに、電話番号やメールアドレス、地名など個人や場所を特定できるような情報、または他の人を傷つけたり炎上しそうな内容があればtrueとだけ言ってください。\nテキスト:\n";
-    const result = await callOpenAI(prompt + content);
-    return result;
+    const response = await chrome.runtime.sendMessage({ action: "callOpenAI", prompt });
+    if (!response.success) throw new Error(response.error);
+    return response.data;
   } catch (error) {
-    return content;
+    console.error("OpenAI API call failed:", error);
+    throw error;
   }
-}
+};
 
-async function generateWarningMessage(content) {
-  try {
-    const prompt = "以下のテキストには、電話番号やメールアドレス、地名など個人や場所を特定できるような情報、または他の人を傷つけたり炎上しそうな内容が含まれています。この内容をインターネット上に公開した場合、内容を踏まえた上で想定される最悪のケースを１０才児にもわかるように１００文字程度で説明してください。\nテキスト:\n";
-    const result = await callOpenAI(prompt + content);
-    return result;
-  } catch (error) {
-    return content;
-  }
-}
+const judge = async (content) => {
+  const prompt = `以下のテキストに、電話番号やメールアドレス、地名など個人や場所を特定できるような情報、または他の人を傷つけたり炎上しそうな内容があればtrueとだけ言ってください。\nテキスト:\n${content}`;
+  return await callOpenAI(prompt);
+};
 
-function createModal(message) {
+const generateWarningMessage = async (content) => {
+  const prompt = `以下のテキストには、電話番号やメールアドレス、地名など個人や場所を特定できるような情報、または他の人を傷つけたり炎上しそうな内容が含まれています。この内容をインターネット上に公開した場合、内容を踏まえた上で想定される最悪のケースを１０才児にもわかるように１００文字程度で説明してください。\nテキスト:\n${content}`;
+  return await callOpenAI(prompt);
+};
+
+const createModal = (message) => {
   const modal = document.createElement('div');
   modal.id = 'myExtensionModal';
   modal.innerHTML = `
@@ -47,9 +34,9 @@ function createModal(message) {
     </div>
   `;
   return modal;
-}
+};
 
-function addModalStyles() {
+const addModalStyles = () => {
   const style = document.createElement('style');
   style.textContent = `
     #myExtensionModal {
@@ -61,10 +48,6 @@ function addModalStyles() {
       width: 100%;
       height: 100%;
       background-color: rgba(0,0,0,0.5);
-    }
-    #myExtensionModal h2, #myExtensionModal p {
-      margin: 0;
-      font-weight: bold;
     }
     #myExtensionModal .modal-content {
       background-color: #fefefe;
@@ -84,6 +67,10 @@ function addModalStyles() {
       gap: 10px;
       justify-content: space-between;
     }
+    #myExtensionModal h2, #myExtensionModal p {
+      margin: 0;
+      font-weight: bold;
+    }
     #myExtensionModal button {
       margin: 0;
       padding: 5px 20px;
@@ -94,81 +81,84 @@ function addModalStyles() {
     }
     #myExtensionModal #confirmTweet {
       background: #ff3434;
+      font-size: 10px;
     }
     #myExtensionModal #cancelTweet {
       background: #36be36;
+      font-size: 16px;
     }
   `;
   document.head.appendChild(style);
-}
+};
 
-function showModal(message) {
-  const modal = document.getElementById('myExtensionModal');
-  if (modal) {
-    modal.remove();
-  }
+const showModal = (message) => {
+  const existingModal = document.getElementById('myExtensionModal');
+  if (existingModal) existingModal.remove();
+  
   document.body.appendChild(createModal(message));
   addModalStyles();
   document.getElementById('myExtensionModal').style.display = 'block';
-}
+};
 
-function hideModal() {
+const hideModal = () => {
   document.getElementById('myExtensionModal').style.display = 'none';
-}
+};
 
-function setupModalListeners(submitButton) {
+const setupModalListeners = (submitButton) => {
   document.getElementById('confirmTweet').addEventListener('click', () => {
     hideModal();
     skipJudge = true;
     submitButton.click();
   });
 
-  document.getElementById('cancelTweet').addEventListener('click', () => {
-    hideModal();
-  });
-}
+  document.getElementById('cancelTweet').addEventListener('click', hideModal);
+};
+
+
+const TWEET_BUTTON_SELECTOR = '[data-testid="tweetButtonInline"]';
+const TWEET_TEXTAREA_SELECTOR = '[data-testid="tweetTextarea_0"]';
 
 let isProcessing = false;
 let skipJudge = false;
 
-function handleTweetSubmit(event) {
-  const submitButton = event.target.closest('[data-testid="tweetButtonInline"]');
+const handleTweetSubmit = async (event) => {
+  const submitButton = event.target.closest(TWEET_BUTTON_SELECTOR);
   if (!submitButton || isProcessing) return;
   if (skipJudge) {
     skipJudge = false;
     return;
   }
 
-  const tweetBox = document.querySelector('[data-testid="tweetTextarea_0"]');
+  const tweetBox = document.querySelector(TWEET_TEXTAREA_SELECTOR);
   if (!tweetBox) return;
 
   event.preventDefault();
   event.stopPropagation();
   isProcessing = true;
 
-  const text = tweetBox.textContent;
-  judge(text).then((result) => {
-    console.log(result)
-    isProcessing = false;
+  try {
+    const text = tweetBox.textContent;
+    const result = await judge(text);
+    
     if (result === "true") {
-      generateWarningMessage(text).then((message) => {
-        showModal(message);
-        setupModalListeners(submitButton);
-      });
+      const message = await generateWarningMessage(text);
+      showModal(message);
+      setupModalListeners(submitButton);
     } else {
       setTimeout(() => {
         skipJudge = true;
         submitButton.click();
       }, 100);
     }
-  }).catch((error) => {
+  } catch (error) {
     console.error("Error processing tweet:", error);
+  } finally {
     isProcessing = false;
-  });
-}
+  }
+};
 
-document.body.addEventListener('click', function(event) {
-  if (event.target.closest('[data-testid="tweetButtonInline"]')) {
+document.body.addEventListener('click', (event) => {
+  if (event.target.closest(TWEET_BUTTON_SELECTOR)) {
     handleTweetSubmit(event);
   }
 }, true);
