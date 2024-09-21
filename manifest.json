@@ -1,0 +1,27 @@
+{
+    "manifest_version": 3,
+    "name": "X投稿確認拡張機能",
+    "version": "1.0",
+    "description": "Xへの投稿時に投稿内容をチェックし、危険な内容であれば確認画面を表示します",
+    "permissions": [
+        "activeTab",
+        "storage"
+    ],
+    "action": {
+        "default_popup": "popup.html"
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://twitter.com/*",
+                "https://x.com/*"
+            ],
+            "js": [
+                "content.js"
+            ]
+        }
+    ]
+}
